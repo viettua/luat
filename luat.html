@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Ôn thi Vấn đáp Viên chức Giáo dục</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .answer-reveal { transition: max-height 0.4s ease-in-out, opacity 0.4s ease-in-out; overflow: hidden; max-height: 0; opacity: 0; }
+        .answer-reveal.open { max-height: 2500px; opacity: 1; }
+        .keyword-highlight { background-color: #fef08a; font-weight: 600; padding: 0 4px; border-radius: 4px; color: #854d0e; }
+        .chart-container { position: relative; width: 100%; max-width: 500px; margin-left: auto; margin-right: auto; height: 320px; max-height: 400px; }
+        @media (min-width: 768px) { .chart-container { height: 350px; } }
+    </style>
+</head>
+<body class="text-slate-800 antialiased h-screen flex overflow-hidden">
+    <!-- Chosen Palette: Cool neutral background (slate-50) with Teal (teal-600) as primary accent for focus, and Amber/Yellow highlights for keywords. -->
+    <!-- Application Structure Plan: A Dashboard and Flashcard interface optimized for rapid memorization. The sidebar allows topical filtering. The top section visualizes core concepts (like the 5 qualities) to build mental models. The main section uses interactive accordion-style cards for active recall testing, prioritizing engagement over passive reading. -->
+    <!-- Visualization & Content Choices: 1. TT32 Core Qualities -> Goal: Inform/Organize -> Radar Chart -> Interaction: Hover tooltips -> Justification: Visually maps the multi-faceted goal of modern education. Library: Chart.js. 2. Content Distribution -> Goal: Inform -> Donut Chart -> Interaction: Hover -> Justification: Shows study load. Library: Chart.js. 3. Q&A -> Goal: Test Recall -> Interactive Cards (HTML/JS) -> Interaction: Click to reveal -> Justification: Forces active recall. Confirming NO SVG/Mermaid used. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <aside class="w-64 bg-white shadow-lg z-20 flex flex-col hidden md:flex h-full border-r border-slate-200">
+        <div class="p-6 border-b border-slate-100">
+            <h1 class="text-xl font-bold text-teal-700 leading-tight">📚 Bí kíp Vấn đáp<br><span class="text-sm font-normal text-slate-500">Giáo dục Tiểu học</span></h1>
+        </div>
+        <nav class="flex-1 overflow-y-auto p-4" id="nav-filters">
+        </nav>
+        <div class="p-4 bg-slate-50 border-t border-slate-200 text-sm text-slate-500 text-center">
+            Học siêu tốc - Phản xạ nhanh
+        </div>
+    </aside>
+
+    <div class="flex-1 flex flex-col h-full relative">
+        <header class="bg-white shadow-sm border-b border-slate-200 p-4 flex justify-between items-center md:hidden z-10">
+            <h1 class="text-lg font-bold text-teal-700">📚 Bí kíp Vấn đáp</h1>
+            <select id="mobile-filter" class="border border-slate-300 rounded p-1 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-500">
+            </select>
+        </header>
+
+        <main class="flex-1 overflow-y-auto p-4 md:p-8 w-full max-w-7xl mx-auto scroll-smooth">
+            
+            <section id="dashboard-section" class="mb-10">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-slate-800 mb-2">📊 Tổng quan Kiến thức Trọng tâm</h2>
+                    <p class="text-slate-600">Khu vực này tóm tắt các triết lý cốt lõi và phân bổ nội dung ôn tập. Việc nắm rõ "bức tranh toàn cảnh" giúp bạn định hình tư duy trả lời phỏng vấn theo đúng định hướng đổi mới của ngành giáo dục hiện nay.</p>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center">
+                        <h3 class="text-lg font-semibold text-slate-700 mb-2 text-center">Mô hình 5 Phẩm chất (TT 32/2018)</h3>
+                        <p class="text-xs text-slate-500 mb-4 text-center">Sự chuyển dịch từ truyền thụ kiến thức sang phát triển con người toàn diện.</p>
+                        <div class="chart-container w-full flex-1 flex justify-center items-center">
+                            <canvas id="radarChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                        <h3 class="text-lg font-semibold text-slate-700 mb-2 text-center">Tỷ trọng Câu hỏi theo Chủ đề</h3>
+                        <p class="text-xs text-slate-500 mb-4 text-center">Phân bổ khối lượng kiến thức cần nắm vững.</p>
+                        <div class="chart-container w-full flex-1 flex justify-center items-center">
+                            <canvas id="donutChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="study-section">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-slate-800 mb-2" id="current-topic-title">💡 Thẻ ghi nhớ (Flashcards)</h2>
+                    <p class="text-slate-600">Đọc to câu hỏi, tự nhẩm câu trả lời dựa vào từ khóa, sau đó bấm <span class="bg-teal-100 text-teal-800 px-2 py-0.5 rounded font-medium text-sm cursor-pointer">Xem đáp án</span> để kiểm tra. Tuyệt đối không học vẹt, hãy tập trung diễn đạt các <span class="keyword-highlight">Từ khóa màu vàng</span>.</p>
+                </div>
+
+                <div id="flashcards-container" class="space-y-4 pb-12">
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const qaData = [
+            // LUẬT NHÀ GIÁO
+            {
+                id: "q1_1",
+                topic: "Luật Nhà giáo số 73/2025/QH15",
+                topicId: "luat-nha-giao",
+                icon: "⚖️",
+                mantra: "Khẳng định vị thế, quyền lợi và trách nhiệm",
+                question: "Mục đích hướng tới (triết lý cốt lõi) của việc ban hành Luật Nhà giáo 2025 là gì?",
+                answer: "Dạ thưa BGK, Luật Nhà giáo 2025 ra đời với mục đích tối thượng là <span class='keyword-highlight'>nâng tầm vị thế của nghề giáo</span>. Cụ thể:<br><br>👉 <b>Bảo vệ:</b> Bảo vệ danh dự, quyền lợi và chế độ đãi ngộ cho giáo viên.<br>👉 <b>Định chuẩn:</b> Vạch ra ranh giới rõ ràng về chuẩn mực đạo đức, những nghĩa vụ phải làm và những điều <span class='keyword-highlight'>tuyệt đối cấm kỵ</span> để đảm bảo sự liêm chính của môi trường giáo dục."
+            },
+            {
+                id: "q1_2",
+                topic: "Luật Nhà giáo số 73/2025/QH15",
+                topicId: "luat-nha-giao",
+                icon: "⚖️",
+                mantra: "Chủ đạo - Ưu đãi - Thu hút nhân tài",
+                question: "Theo Điều 6 Luật Nhà giáo, chính sách của Nhà nước đối với nhà giáo được quy định như thế nào?",
+                answer: "Dạ thưa BGK, Điều 6 quy định Nhà nước giữ vai trò <span class='keyword-highlight'>chủ đạo</span> trong xây dựng đội ngũ nhà giáo, với các điểm nhấn:<br><br>1. <span class='keyword-highlight'>Ưu tiên</span> về tiền lương và chế độ đãi ngộ.<br>2. Có chính sách <span class='keyword-highlight'>thu hút người tài</span>, người có kỹ năng nghề cao và nhà giáo đến vùng dân tộc thiểu số, vùng khó khăn.<br>3. Khuyến khích sự <span class='keyword-highlight'>đổi mới, sáng tạo</span> và hỗ trợ đào tạo, bồi dưỡng."
+            },
+            {
+                id: "q1_3",
+                topic: "Luật Nhà giáo số 73/2025/QH15",
+                topicId: "luat-nha-giao",
+                icon: "⚖️",
+                mantra: "Được chủ động - Phải công bằng",
+                question: "Hãy nêu tóm tắt quyền (Điều 8) và nghĩa vụ (Điều 9) của nhà giáo?",
+                answer: "Dạ thưa BGK:<br><br>🛡️ <b>Về Quyền lợi (Điều 8):</b> Được dạy đúng chuyên môn; được <span class='keyword-highlight'>chủ động sắp xếp</span> nội dung, tài liệu, đánh giá; được <span class='keyword-highlight'>tôn trọng, bảo vệ</span> uy tín, danh dự; được nghỉ hè, lễ và nâng cao trình độ.<br><br>📝 <b>Về Nghĩa vụ (Điều 9):</b> Giảng dạy <span class='keyword-highlight'>đúng mục tiêu, bảo đảm chất lượng</span>; giữ gìn phẩm chất, đạo đức <span class='keyword-highlight'>làm gương</span> và liêm chính học thuật; đặc biệt phải tôn trọng, <span class='keyword-highlight'>đối xử công bằng</span> và bảo vệ quyền lợi hợp pháp của học sinh."
+            },
+            {
+                id: "q1_4",
+                topic: "Luật Nhà giáo số 73/2025/QH15",
+                topicId: "luat-nha-giao",
+                icon: "⚖️",
+                mantra: "Không phân biệt - Không gian lận - Không ép buộc",
+                question: "Pháp luật nghiêm cấm nhà giáo làm những việc gì theo Điều 11?",
+                answer: "Dạ thưa BGK, Điều 11 quy định những 'lằn ranh đỏ' tuyệt đối không được vi phạm, gồm 3 ý chính:<br><br>1. <span class='keyword-highlight'>Không phân biệt đối xử</span> với người học dưới mọi hình thức.<br>2. <span class='keyword-highlight'>Không được gian lận</span>, làm sai lệch kết quả kiểm tra, tuyển sinh.<br>3. <span class='keyword-highlight'>Không ép buộc</span> người học học thêm hoặc nộp tiền, hiện vật ngoài quy định."
+            },
+            {
+                id: "q1_5",
+                topic: "Luật Nhà giáo số 73/2025/QH15",
+                topicId: "luat-nha-giao",
+                icon: "⚖️",
+                mantra: "GS (+10), PGS (+7), TS (+5)",
+                question: "Đồng chí biết gì về chế độ nghỉ hưu ở tuổi cao hơn của nhà giáo theo Điều 27?",
+                answer: "Dạ thưa BGK, chính sách này áp dụng cho nhà giáo có trình độ cao hoặc làm việc trong lĩnh vực chuyên sâu. Điều kiện là: cơ sở giáo dục <span class='keyword-highlight'>có nhu cầu</span>, nhà giáo <span class='keyword-highlight'>tự nguyện và đủ sức khỏe</span>.<br><br>Thời gian kéo dài tối đa là: <span class='keyword-highlight'>Tiến sĩ (không quá 5 tuổi), Phó Giáo sư (không quá 7 tuổi), Giáo sư (không quá 10 tuổi)</span>."
+            },
+
+            // TT 32 & 17 - CHƯƠNG TRÌNH GDPT
+            {
+                id: "q2_1",
+                topic: "Chương trình GDPT 2018 (TT 32 & TT 17)",
+                topicId: "tt-32",
+                icon: "🎯",
+                mantra: "Từ 'Học để biết' sang 'Học để làm được gì'",
+                question: "Mục tiêu cốt lõi và sự khác biệt lớn nhất của Chương trình GDPT 2018 (TT 32) so với trước đây là gì?",
+                answer: "Dạ thưa BGK, mục đích hướng tới của TT 32 là 'bản thiết kế' định hình lại toàn bộ nền giáo dục, đập bỏ phương pháp dạy học thụ động (thầy đọc trò chép), chuyển sang <span class='keyword-highlight'>dạy học kiến tạo</span>.<br><br>Sự khác biệt cốt lõi là chuyển từ nền giáo dục <span class='keyword-highlight'>'truyền thụ kiến thức' (học sinh biết được gì)</span> sang nền giáo dục <span class='keyword-highlight'>'phát triển phẩm chất, năng lực' (học sinh làm được gì từ kiến thức đó)</span>."
+            },
+            {
+                id: "q2_2",
+                topic: "Chương trình GDPT 2018 (TT 32 & TT 17)",
+                topicId: "tt-32",
+                icon: "🎯",
+                mantra: "Công thức 5 - 3 - 7",
+                question: "Yêu cầu cần đạt của Chương trình GDPT 2018 là gì? Hãy trình bày công thức 5-3-7.",
+                answer: "Dạ thưa BGK, yêu cầu cần đạt được tóm gọn qua công thức 5-3-7:<br><br>⭐ <b>5 Phẩm chất:</b> Yêu nước - Nhân ái - Chăm chỉ - <span class='keyword-highlight'>Trung thực - Trách nhiệm</span>.<br>🧠 <b>3 Năng lực chung:</b> Tự chủ tự học - Giao tiếp hợp tác - <span class='keyword-highlight'>Giải quyết vấn đề và sáng tạo</span>.<br>🛠️ <b>7 Năng lực đặc thù:</b> Ngôn ngữ, Tính toán, Khoa học, Công nghệ, <span class='keyword-highlight'>Tin học</span>, Thẩm mỹ, Thể chất."
+            },
+            {
+                id: "q2_3",
+                topic: "Chương trình GDPT 2018 (TT 32 & TT 17)",
+                topicId: "tt-32",
+                icon: "🎯",
+                mantra: "GV kiến tạo - HS chủ thể",
+                question: "Định hướng phương pháp giáo dục (cách dạy) theo Thông tư 32 thay đổi như thế nào?",
+                answer: "Dạ thưa BGK, phương pháp thay đổi hoàn toàn vai trò của người dạy và người học:<br><br>👩‍🏫 <b>Giáo viên:</b> Không còn là người 'đọc - chép' mà đóng vai trò là <span class='keyword-highlight'>người tổ chức, hướng dẫn, kiến tạo</span> môi trường học tập.<br>👧👦 <b>Học sinh:</b> Là <span class='keyword-highlight'>chủ thể tích cực</span>, tự khám phá kiến thức thông qua chuỗi 4 hoạt động: <b>Khởi động -> Khám phá/Hình thành kiến thức mới -> Luyện tập -> Vận dụng</b>."
+            },
+            {
+                id: "q2_4",
+                topic: "Chương trình GDPT 2018 (TT 32 & TT 17)",
+                topicId: "tt-32",
+                icon: "🎯",
+                mantra: "Cập nhật tính thời sự, thực tiễn",
+                question: "Bản chất và mục đích hướng tới của Thông tư 17/2025/TT-BGDĐT (Sửa đổi, bổ sung TT 32) là gì?",
+                answer: "Dạ thưa BGK, Thông tư 17 ra đời nhằm mục đích <span class='keyword-highlight'>vá lỗi và làm mới</span> Chương trình GDPT 2018.<br><br>Bản chất của nó là để <span class='keyword-highlight'>cập nhật ngay lập tức các thay đổi về địa dư, lịch sử, và pháp luật (như Hiến pháp mới)</span> ở các môn khoa học xã hội. Mục tiêu là để kiến thức trong SGK luôn đồng hành, sát với bối cảnh phát triển kinh tế - xã hội hiện tại của đất nước."
+            },
+            {
+                id: "q2_5",
+                topic: "Chương trình GDPT 2018 (TT 32 & TT 17)",
+                topicId: "tt-32",
+                icon: "🎯",
+                mantra: "Triết lý giữ nguyên - Cập nhật công cụ",
+                question: "(Câu hỏi tình huống) Thông tư 17/2025 có ảnh hưởng gì đến việc dạy môn Tin học (hoặc môn học của đồng chí) không?",
+                answer: "Dạ thưa Ban giám khảo, Thông tư 17 ra đời nhằm cập nhật và tinh chỉnh một số nội dung đặc thù để sát với bối cảnh mới. Tuy nhiên, <span class='keyword-highlight'>triết lý cốt lõi về phát triển phẩm chất, năng lực học sinh của Thông tư 32 vẫn được giữ nguyên</span>.<br><br>Do đó, đối với môn của em, em vẫn bám sát định hướng dạy học <span class='keyword-highlight'>chú trọng thực hành, ứng dụng công nghệ để giải quyết vấn đề thực tiễn</span>, đồng thời liên tục cập nhật các công cụ, phần mềm mới phù hợp với định hướng chuyển đổi số hiện nay của ngành giáo dục."
+            },
+
+            // ĐIỀU LỆ TRƯỜNG TIỂU HỌC
+            {
+                id: "q3_1",
+                topic: "Điều lệ trường Tiểu học (TT 28/2020)",
+                topicId: "tt-28",
+                icon: "🏫",
+                mantra: "Khung luật chơi chuẩn mực của nhà trường",
+                question: "Mục đích hướng tới của Điều lệ trường Tiểu học theo Thông tư 28 là gì?",
+                answer: "Dạ thưa BGK, Thông tư 28 nhằm <span class='keyword-highlight'>thiết lập trật tự, quy tắc vận hành</span> cho cấp tiểu học.<br><br>Đối với giáo viên, văn bản này đóng vai trò như một bản <span class='keyword-highlight'>'nội quy lao động' đặc thù</span>, chỉ rõ giáo viên được làm gì (quyền tự chủ), phải làm gì (nhiệm vụ) và phải ứng xử ra sao với học sinh, phụ huynh để đảm bảo môi trường sư phạm an toàn, dân chủ."
+            },
+            {
+                id: "q3_2",
+                topic: "Điều lệ trường Tiểu học (TT 28/2020)",
+                topicId: "tt-28",
+                icon: "🏫",
+                mantra: "Dạy học - Đánh giá - Yêu thương - Tự học",
+                question: "Hãy nêu các nhiệm vụ chính của giáo viên tiểu học theo Điều 27 của Thông tư 28?",
+                answer: "Dạ thưa BGK, Điều 27 quy định giáo viên có các nhiệm vụ cốt lõi sau:<br><br>1. Thực hiện kế hoạch giáo dục, <span class='keyword-highlight'>tự chủ và tự chịu trách nhiệm</span> về chuyên môn, kiểm tra đánh giá.<br>2. Xây dựng mối <span class='keyword-highlight'>quan hệ thân thiện, dân chủ</span> với học sinh và cộng đồng.<br>3. Thương yêu, tôn trọng và <span class='keyword-highlight'>bảo vệ quyền lợi chính đáng</span> của học sinh.<br>4. Phải <span class='keyword-highlight'>tự học, ứng dụng công nghệ thông tin</span> vào giảng dạy."
+            },
+            {
+                id: "q3_3",
+                topic: "Điều lệ trường Tiểu học (TT 28/2020)",
+                topicId: "tt-28",
+                icon: "🏫",
+                mantra: "Tự chủ chuyên môn - Được bồi dưỡng",
+                question: "Giáo viên tiểu học có những quyền lợi gì theo Điều 29?",
+                answer: "Dạ thưa BGK, theo Điều 29, giáo viên được bảo đảm các quyền:<br><br>1. Quan trọng nhất là <span class='keyword-highlight'>được tự chủ</span> thực hiện nhiệm vụ chuyên môn, <span class='keyword-highlight'>linh hoạt vận dụng</span> phương pháp giáo dục.<br>2. Được hưởng tiền lương, phụ cấp theo quy định.<br>3. Được tạo điều kiện <span class='keyword-highlight'>học tập bồi dưỡng</span> nâng cao trình độ."
+            },
+            {
+                id: "q3_4",
+                topic: "Điều lệ trường Tiểu học (TT 28/2020)",
+                topicId: "tt-28",
+                icon: "🏫",
+                mantra: "Không dạy sai - Không gian lận - Không xúc phạm",
+                question: "Các hành vi ứng xử, việc giáo viên không được làm theo Điều 31 là gì?",
+                answer: "Dạ thưa BGK, Điều 31 quy định giáo viên tuyệt đối không được có các hành vi sau:<br><br>1. Không <span class='keyword-highlight'>dạy sai kiến thức, không xuyên tạc</span> nội dung giáo dục.<br>2. Không <span class='keyword-highlight'>gian lận</span> trong kiểm tra đánh giá học sinh.<br>3. Không <span class='keyword-highlight'>ép buộc học thêm</span> vì mục đích vật chất.<br>4. Không bỏ giờ, <span class='keyword-highlight'>tùy tiện cắt xén</span> nội dung.<br>5. Tuyệt đối <span class='keyword-highlight'>không xúc phạm danh dự, nhân phẩm, thân thể</span> người khác."
+            },
+
+            // ĐÁNH GIÁ HỌC SINH TH
+            {
+                id: "q4_1",
+                topic: "Đánh giá học sinh tiểu học (TT 27/2020)",
+                topicId: "tt-27",
+                icon: "📈",
+                mantra: "Xóa bệnh thành tích - Vì sự tiến bộ",
+                question: "Triết lý cốt lõi và mục đích hướng tới của Thông tư 27 về đánh giá học sinh tiểu học là gì?",
+                answer: "Dạ thưa BGK, mục đích hướng tới của TT 27 là <span class='keyword-highlight'>xóa bỏ bệnh thành tích và áp lực điểm số</span> đè nặng lên học sinh cấp 1.<br><br>Văn bản chuyển đổi triết lý kiểm tra từ <span class='keyword-highlight'>'phân loại, trừng phạt'</span> sang <span class='keyword-highlight'>'động viên, khích lệ'</span>. Tuyệt đối không dùng kết quả để so sánh học sinh này với học sinh khác, mà dùng để đánh giá vì sự tiến bộ của từng em."
+            },
+            {
+                id: "q4_2",
+                topic: "Đánh giá học sinh tiểu học (TT 27/2020)",
+                topicId: "tt-27",
+                icon: "📈",
+                mantra: "GV điều chỉnh - HS tự nhận xét - Phụ huynh hợp tác",
+                question: "Theo Điều 3, mục đích cụ thể của việc đánh giá học sinh tiểu học là gì?",
+                answer: "Dạ thưa BGK, Điều 3 chỉ rõ việc đánh giá nhằm cung cấp thông tin chính xác, kịp thời về sự tiến bộ và mức độ đáp ứng chương trình để phục vụ 3 đối tượng:<br><br>1. Giúp <span class='keyword-highlight'>giáo viên điều chỉnh</span> phương pháp dạy học.<br>2. Giúp <span class='keyword-highlight'>học sinh biết tự nhận xét</span> và điều chỉnh cách học.<br>3. Giúp <span class='keyword-highlight'>cha mẹ học sinh hợp tác</span> với nhà trường trong giáo dục."
+            },
+            {
+                id: "q4_3",
+                topic: "Đánh giá học sinh tiểu học (TT 27/2020)",
+                topicId: "tt-27",
+                icon: "📈",
+                mantra: "Khích lệ - Không so sánh - Không áp lực",
+                question: "Yêu cầu của việc đánh giá học sinh tiểu học được quy định thế nào tại Điều 4?",
+                answer: "Dạ thưa BGK, Điều 4 đặt ra các yêu cầu khắt khe:<br><br>1. Đánh giá <span class='keyword-highlight'>vì sự tiến bộ</span> của học sinh; coi trọng việc <span class='keyword-highlight'>động viên, khuyến khích</span> sự cố gắng.<br>2. Đánh giá thường xuyên <span class='keyword-highlight'>bằng nhận xét</span>, đánh giá định kỳ bằng <span class='keyword-highlight'>điểm số kết hợp nhận xét</span>.<br>3. <span class='keyword-highlight'>Tuyệt đối không so sánh</span> học sinh này với học sinh khác, <span class='keyword-highlight'>không tạo áp lực</span> cho học sinh và cha mẹ."
+            },
+            {
+                id: "q4_4",
+                topic: "Đánh giá học sinh tiểu học (TT 27/2020)",
+                topicId: "tt-27",
+                icon: "📈",
+                mantra: "Phẩm chất - Năng lực chung - Năng lực đặc thù",
+                question: "Nội dung đánh giá học sinh theo Điều 5 Thông tư 27 bao gồm những gì?",
+                answer: "Dạ thưa BGK, Điều 5 quy định đánh giá sự hình thành và phát triển của học sinh thông qua toàn diện các mặt (bám sát TT 32):<br><br>1. Đánh giá <span class='keyword-highlight'>5 phẩm chất chủ yếu</span> (yêu nước, nhân ái, chăm chỉ, trung thực, trách nhiệm).<br>2. Đánh giá <span class='keyword-highlight'>các năng lực cốt lõi</span>, bao gồm 3 năng lực chung (tự chủ tự học, giao tiếp hợp tác, giải quyết vấn đề sáng tạo) và các <span class='keyword-highlight'>năng lực đặc thù</span> của môn học (như tin học, toán học, ngôn ngữ...)."
+            }
+        ];
+
+        const topics = [
+            { id: 'all', name: 'Tất cả nội dung', icon: '🌐' },
+            { id: 'luat-nha-giao', name: 'Luật Nhà giáo 2025', icon: '⚖️' },
+            { id: 'tt-32', name: 'Chương trình GDPT mới', icon: '🎯' },
+            { id: 'tt-28', name: 'Điều lệ trường Tiểu học', icon: '🏫' },
+            { id: 'tt-27', name: 'Đánh giá học sinh TH', icon: '📈' }
+        ];
+
+        let currentFilter = 'all';
+        let chartsInstance = {};
+
+        function initApp() {
+            renderNavigation();
+            renderFlashcards();
+            initCharts();
+        }
+
+        function renderNavigation() {
+            const navContainer = document.getElementById('nav-filters');
+            const mobileSelect = document.getElementById('mobile-filter');
+            
+            navContainer.innerHTML = '';
+            mobileSelect.innerHTML = '';
+
+            topics.forEach(topic => {
+                const btn = document.createElement('button');
+                const isSelected = topic.id === currentFilter;
+                
+                btn.className = `w-full text-left px-4 py-3 mb-2 rounded-lg transition-colors flex items-center gap-3 text-sm font-medium ${isSelected ? 'bg-teal-50 text-teal-700 border border-teal-200' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`;
+                btn.innerHTML = `<span>${topic.icon}</span> <span>${topic.name}</span>`;
+                btn.onclick = () => setFilter(topic.id);
+                navContainer.appendChild(btn);
+
+                const option = document.createElement('option');
+                option.value = topic.id;
+                option.text = topic.name;
+                if(isSelected) option.selected = true;
+                mobileSelect.appendChild(option);
+            });
+
+            mobileSelect.addEventListener('change', (e) => setFilter(e.target.value));
+        }
+
+        function setFilter(topicId) {
+            currentFilter = topicId;
+            renderNavigation();
+            renderFlashcards();
+            
+            const titleEl = document.getElementById('current-topic-title');
+            if(topicId === 'all') {
+                titleEl.innerHTML = `💡 Thẻ ghi nhớ (Tất cả)`;
+                document.getElementById('dashboard-section').style.display = 'block';
+            } else {
+                const topicName = topics.find(t => t.id === topicId).name;
+                titleEl.innerHTML = `💡 Thẻ ghi nhớ: ${topicName}`;
+                document.getElementById('dashboard-section').style.display = 'none';
+            }
+        }
+
+        function renderFlashcards() {
+            const container = document.getElementById('flashcards-container');
+            container.innerHTML = '';
+
+            const filteredData = currentFilter === 'all' ? qaData : qaData.filter(q => q.topicId === currentFilter);
+
+            if (filteredData.length === 0) {
+                container.innerHTML = '<p class="text-slate-500 italic p-4 text-center">Không có câu hỏi nào cho chủ đề này.</p>';
+                return;
+            }
+
+            let currentTopicHeader = '';
+
+            filteredData.forEach(item => {
+                if (currentFilter === 'all' && currentTopicHeader !== item.topic) {
+                    const header = document.createElement('div');
+                    header.className = 'mt-8 mb-4 border-b-2 border-teal-100 pb-2 flex items-center justify-between';
+                    header.innerHTML = `
+                        <h3 class="text-lg font-bold text-teal-800 flex items-center gap-2">${item.icon} ${item.topic}</h3>
+                    `;
+                    container.appendChild(header);
+                    currentTopicHeader = item.topic;
+                }
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow';
+                
+                const questionArea = document.createElement('div');
+                questionArea.className = 'p-5 cursor-pointer flex justify-between items-start gap-4 group';
+                questionArea.onclick = () => toggleAnswer(item.id);
+                questionArea.innerHTML = `
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Câu hỏi</span>
+                            ${item.mantra ? `<span class="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 shadow-sm">${item.mantra}</span>` : ''}
+                        </div>
+                        <h4 class="text-base font-semibold text-slate-800 leading-snug group-hover:text-teal-700 transition-colors">${item.question}</h4>
+                    </div>
+                    <button class="shrink-0 bg-teal-50 hover:bg-teal-100 text-teal-700 text-sm font-medium px-3 py-1.5 rounded transition-colors border border-teal-200 focus:outline-none" id="btn-${item.id}">
+                        Xem đáp án
+                    </button>
+                `;
+
+                const answerArea = document.createElement('div');
+                answerArea.id = `answer-${item.id}`;
+                answerArea.className = 'answer-reveal bg-slate-50 border-t border-slate-100 px-5 text-sm text-slate-700 leading-relaxed';
+                answerArea.innerHTML = `<div class="py-5">${item.answer}</div>`;
+
+                card.appendChild(questionArea);
+                card.appendChild(answerArea);
+                container.appendChild(card);
+            });
+        }
+
+        function toggleAnswer(id) {
+            const answerEl = document.getElementById(`answer-${id}`);
+            const btnEl = document.getElementById(`btn-${id}`);
+            
+            const isOpen = answerEl.classList.contains('open');
+            
+            if (isOpen) {
+                answerEl.classList.remove('open');
+                btnEl.textContent = 'Xem đáp án';
+                btnEl.classList.remove('bg-teal-600', 'text-white');
+                btnEl.classList.add('bg-teal-50', 'text-teal-700');
+            } else {
+                answerEl.classList.add('open');
+                btnEl.textContent = 'Đóng lại';
+                btnEl.classList.remove('bg-teal-50', 'text-teal-700');
+                btnEl.classList.add('bg-teal-600', 'text-white');
+            }
+        }
+
+        function initCharts() {
+            const radarCtx = document.getElementById('radarChart').getContext('2d');
+            chartsInstance.radar = new Chart(radarCtx, {
+                type: 'radar',
+                data: {
+                    labels: ['Yêu nước', 'Nhân ái', 'Chăm chỉ', 'Trung thực', 'Trách nhiệm'],
+                    datasets: [{
+                        label: 'Mức độ nhấn mạnh trong TT 32',
+                        data: [8, 9, 8, 10, 10], 
+                        backgroundColor: 'rgba(13, 148, 136, 0.2)',
+                        borderColor: 'rgba(13, 148, 136, 1)',
+                        pointBackgroundColor: 'rgba(13, 148, 136, 1)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(13, 148, 136, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    scales: {
+                        r: {
+                            angleLines: { color: 'rgba(0, 0, 0, 0.1)' },
+                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                            pointLabels: {
+                                font: { family: 'Inter', size: 12, weight: '600' },
+                                color: '#475569'
+                            },
+                            ticks: { display: false, max: 10, min: 0 }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleFont: { family: 'Inter', size: 13 },
+                            bodyFont: { family: 'Inter', size: 12 },
+                            padding: 10,
+                            callbacks: {
+                                label: function() { return 'Nền tảng cốt lõi hình thành nhân cách'; }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Tự động tính toán số lượng câu hỏi dựa trên mảng qaData
+            const topicCounts = {};
+            qaData.forEach(item => {
+                topicCounts[item.topic] = (topicCounts[item.topic] || 0) + 1;
+            });
+            const donutLabels = Object.keys(topicCounts);
+            const donutData = Object.values(topicCounts);
+
+            const donutCtx = document.getElementById('donutChart').getContext('2d');
+            chartsInstance.donut = new Chart(donutCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: donutLabels,
+                    datasets: [{
+                        data: donutData,
+                        backgroundColor: [
+                            '#0d9488', 
+                            '#f59e0b', 
+                            '#3b82f6', 
+                            '#8b5cf6'  
+                        ],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    cutout: '65%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: { family: 'Inter', size: 12 },
+                                color: '#475569',
+                                padding: 15,
+                                usePointStyle: true,
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleFont: { family: 'Inter', size: 13 },
+                            bodyFont: { family: 'Inter', size: 12 },
+                            padding: 10,
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.raw} câu hỏi trọng tâm`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
